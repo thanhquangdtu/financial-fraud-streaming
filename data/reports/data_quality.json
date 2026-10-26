@@ -1,0 +1,52 @@
+{
+  "banksim_clean": {
+    "rows": 594643,
+    "errors": [],
+    "step_min": 0,
+    "step_max": 179,
+    "fraud_counts": {
+      "0": 587443,
+      "1": 7200
+    }
+  },
+  "train": {
+    "rows": 392733,
+    "errors": [],
+    "step_min": 0,
+    "step_max": 124,
+    "fraud_counts": {
+      "0": 387733,
+      "1": 5000
+    }
+  },
+  "validation": {
+    "rows": 101793,
+    "errors": [],
+    "step_min": 125,
+    "step_max": 152,
+    "fraud_counts": {
+      "0": 100673,
+      "1": 1120
+    }
+  },
+  "test": {
+    "rows": 100117,
+    "errors": [],
+    "step_min": 153,
+    "step_max": 179,
+    "fraud_counts": {
+      "0": 99037,
+      "1": 1080
+    }
+  },
+  "synthetic": {
+    "rows": 160,
+    "errors": [],
+    "step_min": 0,
+    "step_max": 109,
+    "fraud_counts": {
+      "0": 0,
+      "1": 0
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "valid_rows": 594643,
+  "invalid_rows": 0,
+  "output": "E:\\financial-fraud-streaming\\data\\processed\\banksim_clean.csv",
+  "invalid_output": "E:\\financial-fraud-streaming\\data\\reports\\invalid_rows.csv"
+}

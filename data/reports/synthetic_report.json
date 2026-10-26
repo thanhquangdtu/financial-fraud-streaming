@@ -1,0 +1,6 @@
+{
+  "seed": 18,
+  "customers": 4,
+  "transactions": 160,
+  "note": "scenario_anomaly is not a confirmed fraud label"
+}

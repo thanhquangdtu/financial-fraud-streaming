@@ -1,0 +1,23 @@
+{
+  "train": {
+    "rows": 392733,
+    "fraud_0": 387733,
+    "fraud_1": 5000,
+    "step_min": 0,
+    "step_max": 124
+  },
+  "validation": {
+    "rows": 101793,
+    "fraud_0": 100673,
+    "fraud_1": 1120,
+    "step_min": 125,
+    "step_max": 152
+  },
+  "test": {
+    "rows": 100117,
+    "fraud_0": 99037,
+    "fraud_1": 1080,
+    "step_min": 153,
+    "step_max": 179
+  }
+}

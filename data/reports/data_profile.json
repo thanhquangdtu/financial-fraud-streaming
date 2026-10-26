@@ -1,0 +1,19 @@
+{
+  "source": "bs140513_032310.csv",
+  "rows": 594643,
+  "unique_customers": 4112,
+  "unique_merchants": 50,
+  "fraud_counts": {
+    "0": 587443,
+    "1": 7200
+  },
+  "fraud_rate_percent": 1.2108,
+  "invalid_rows": 0,
+  "missing_values": {},
+  "amount_min": 0.0,
+  "amount_max": 8329.96,
+  "amount_mean_valid": 37.8901,
+  "step_min": 0,
+  "step_max": 179,
+  "unique_steps": 180
+}
