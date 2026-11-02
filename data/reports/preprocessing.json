@@ -1,4 +1,6 @@
 {
+  "start": "2020-01-01T00:00:00+00:00",
+  "step_hours": 24,
   "valid_rows": 594643,
   "invalid_rows": 0,
   "output": "E:\\financial-fraud-streaming\\data\\processed\\banksim_clean.csv",

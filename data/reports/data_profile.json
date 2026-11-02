@@ -10,6 +10,7 @@
   "fraud_rate_percent": 1.2108,
   "invalid_rows": 0,
   "missing_values": {},
+  "zero_amount_count": 52,
   "amount_min": 0.0,
   "amount_max": 8329.96,
   "amount_mean_valid": 37.8901,

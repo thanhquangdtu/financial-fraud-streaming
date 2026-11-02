@@ -6,6 +6,19 @@ from collections import Counter
 from .common import ROOT, COLUMNS, write_csv, write_json
 
 
+# ==============================================================================
+# Hàm: split
+# - Mục đích: Chia tập dữ liệu thành 3 tập Train, Validation, Test theo thứ tự thời gian (chronological split).
+# - Điều cần chú ý:
+#   + Ràng buộc tham số: `train_ratio > 0`, `val_ratio > 0` và tổng `train_ratio + val_ratio < 1`.
+#   + Bắt buộc dữ liệu phải có tối thiểu 3 giá trị `step` phân biệt.
+#   + Cơ chế phân chia theo thời gian: Sắp xếp các `step` duy nhất và cắt ngưỡng theo danh sách step đó.
+#     * Tập train nhận các step đầu tiên `[:a]`.
+#     * Tập validation nhận các step tiếp theo `[a:b]`.
+#     * Tập test nhận các step cuối cùng `[b:]`.
+#   + TUYỆT ĐỐI KHÔNG chia ngẫu nhiên (random shuffle) để ngăn ngừa rò rỉ thông tin tương lai (data leakage) trong bài toán streaming/time-series.
+#   + Trả về dict gồm 3 danh sách bản ghi: `train`, `validation`, `test`.
+# ==============================================================================
 def split(rows, train_ratio=0.7, val_ratio=0.15):
     if (
         not 0 < train_ratio < 1
@@ -55,6 +68,17 @@ def split(rows, train_ratio=0.7, val_ratio=0.15):
     return parts
 
 
+# ==============================================================================
+# Hàm: main
+# - Mục đích: Điểm vào thực thi CLI cho tiến trình phân chia tập dữ liệu.
+# - Điều cần chú ý:
+#   + Nhận tham số dòng lệnh `--train-ratio` (mặc định 0.7) và `--validation-ratio` (mặc định 0.15).
+#   + Nguồn dữ liệu đầu vào: đọc file đã làm sạch `data/processed/banksim_clean.csv`.
+#   + Xuất 3 tập dữ liệu tương ứng: `train.csv`, `validation.csv`, `test.csv` trong `data/processed/`.
+#   + Thống kê số lượng dòng, số lượng fraud (0 và 1), dải step (`step_min`, `step_max`)
+#     và lưu vào `data/reports/split_report.json`.
+#   + Kiểm tra và phát cảnh báo nếu một tập không có mẫu gian lận nào (`fraud_1 == 0`).
+# ==============================================================================
 def main():
     p = argparse.ArgumentParser()
 

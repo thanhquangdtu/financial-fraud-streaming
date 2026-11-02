@@ -6,6 +6,27 @@ from datetime import datetime, timedelta, timezone
 from .common import ROOT, write_csv, write_json, txid
 
 
+STEP_HOURS = 24
+
+
+# ==============================================================================
+# Hàm: generate
+# - Mục đích: Sinh dữ liệu hồ sơ khách hàng và chuỗi giao dịch nhân tạo (synthetic) theo các kịch bản hành vi kiểm soát được.
+# - Điều cần chú ý:
+#   + Tính tái lập (Reproducibility): Nhận `seed` cố định để đảm bảo dữ liệu sinh ra giống hệt nhau ở mỗi lần chạy.
+#   + Ràng buộc: `per_customer` phải >= 10 (mặc định 40 giao dịch/khách hàng).
+#   + Xây dựng 4 hồ sơ khách hàng đại diện cho 4 pattern hành vi thực tế:
+#     * `SYN_A` (frequent_small): Giao dịch nhỏ đều đặn; 5 giao dịch cuối đột biến số tiền x20.
+#     * `SYN_B` (infrequent_high): Giao dịch lớn thưa thớt; 5 giao dịch cuối dồn dập từng step liên tiếp.
+#     * `SYN_C` (category_focused): Tập trung ngành đồ ăn; 5 giao dịch cuối nhảy sang ngành du lịch ('es_travel').
+#     * `SYN_D` (stable_then_burst): Chi tiêu ổn định; 5 giao dịch cuối xảy ra đồng thời trong cùng 1 step.
+#   + Gắn cờ `scenario_anomaly` (0 hoặc 1) để nhận diện bất thường theo kịch bản.
+#   + ĐẶC BIỆT CHÚ Ý: Cột `fraud_label` để trống `""` và `data_source = "synthetic"`.
+#     `scenario_anomaly` chỉ phục vụ thử nghiệm phân tích hành vi khách hàng, KHÔNG PHẢI nhãn gian lận thật
+#     và không được đem đi train mô hình ML.
+#   + `event_time` tính theo `start + timedelta(hours=step * STEP_HOURS)` với `STEP_HOURS = 24`.
+#   + Trả về tuple gồm danh sách hồ sơ khách hàng `customers` và danh sách giao dịch `rows`.
+# ==============================================================================
 def generate(seed=18, per_customer=40):
     if per_customer < 10:
         raise ValueError("per-customer must be >= 10")
@@ -66,7 +87,7 @@ def generate(seed=18, per_customer=40):
                 "merchant_id": "SYN_M_" + cat,
                 "step": step,
                 "event_time": (
-                    start + timedelta(hours=step)
+                    start + timedelta(hours=step * STEP_HOURS)
                 ).isoformat(),
                 "ingestion_time": "",
                 "amount": amount,
@@ -83,6 +104,16 @@ def generate(seed=18, per_customer=40):
     return customers, rows
 
 
+# ==============================================================================
+# Hàm: main
+# - Mục đích: Điểm vào thực thi CLI cho tiến trình sinh dữ liệu synthetic.
+# - Điều cần chú ý:
+#   + Nhận tham số `--seed` (mặc định 18) và `--per-customer` (mặc định 40).
+#   + Xuất file hồ sơ khách hàng: `data/synthetic/customer_profiles.csv`.
+#   + Xuất file giao dịch synthetic: `data/synthetic/transactions.csv`.
+#   + Lưu metadata cấu hình (seed, start, step_hours, số lượng) vào `data/reports/synthetic_report.json`.
+#   + Báo cáo luôn đính kèm ghi chú khẳng định `scenario_anomaly` không phải nhãn fraud thật.
+# ==============================================================================
 def main():
     p = argparse.ArgumentParser()
 
@@ -120,6 +151,8 @@ def main():
         ROOT / "data/reports/synthetic_report.json",
         {
             "seed": a.seed,
+            "start": "2020-01-01T00:00:00+00:00",
+            "step_hours": STEP_HOURS,
             "customers": len(profiles),
             "transactions": len(rows),
             "note": (
