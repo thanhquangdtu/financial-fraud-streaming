@@ -2,5 +2,6 @@ Metadata-Version: 2.4
 Name: financial-streaming
 Version: 0.1.0
 Requires-Python: >=3.10
+Requires-Dist: kafka-python>=2.0.2
 Provides-Extra: dev
 Requires-Dist: pytest<10,>=7; extra == "dev"

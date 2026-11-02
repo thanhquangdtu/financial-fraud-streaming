@@ -12,3 +12,9 @@ src/financial_streaming/preprocessing/inspect.py
 src/financial_streaming/preprocessing/split.py
 src/financial_streaming/preprocessing/synthetic.py
 src/financial_streaming/preprocessing/validate.py
+src/financial_streaming/producer/__init__.py
+src/financial_streaming/producer/cli.py
+src/financial_streaming/producer/config.py
+src/financial_streaming/producer/message.py
+src/financial_streaming/producer/replay.py
+src/financial_streaming/producer/sink.py

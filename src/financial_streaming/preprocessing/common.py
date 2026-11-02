@@ -10,12 +10,7 @@ COLUMNS = ['transaction_id','customer_id','merchant_id','step','event_time','ing
 # ==============================================================================
 # Hàm: source_file
 # - Mục đích: Xác định và trả về đường dẫn file CSV dữ liệu thô (raw BankSim).
-# - Điều cần chú ý:
-#   + Nếu có truyền `path`, hàm kiểm tra file có tồn tại hay không (ném FileNotFoundError nếu sai).
-#   + Nếu không truyền `path`, mặc định tìm trong thư mục `data/raw/`. Tại đây bắt buộc phải
-#     có duy nhất 1 file `.csv`. Nếu có 0 hoặc nhiều hơn 1 file sẽ ném ValueError yêu cầu truyền `--input`.
-#   + Trả về đối tượng `pathlib.Path`.
-# ==============================================================================
+
 def source_file(path=None):
     if path:
         p=Path(path)

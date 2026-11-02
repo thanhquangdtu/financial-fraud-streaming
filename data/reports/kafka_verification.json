@@ -1,0 +1,92 @@
+{
+  "verified_at": "2026-11-02T05:32:34.251428+00:00",
+  "bootstrap_servers": "localhost:9092",
+  "topic": "transactions.raw",
+  "partition_count": 3,
+  "total_messages": 200,
+  "partitions": {
+    "0": {
+      "beginning_offset": 0,
+      "end_offset": 63,
+      "messages": 63
+    },
+    "1": {
+      "beginning_offset": 0,
+      "end_offset": 66,
+      "messages": 66
+    },
+    "2": {
+      "beginning_offset": 0,
+      "end_offset": 71,
+      "messages": 71
+    }
+  },
+  "sample_messages": [
+    {
+      "partition": 0,
+      "offset": 0,
+      "key": "C114981535",
+      "value": {
+        "transaction_id": "d6756b7bce12a2f1caf55b82",
+        "customer_id": "C114981535",
+        "merchant_id": "M348934600",
+        "step": 125,
+        "event_time": "2020-05-05T00:00:00+00:00",
+        "ingestion_time": "2026-11-02T05:11:56.381025+00:00",
+        "amount": 12.88,
+        "category": "es_transportation",
+        "age_group": "3",
+        "gender": "F",
+        "zipcode_ori": "28007",
+        "zipcode_merchant": "28007",
+        "fraud_label": 0,
+        "data_source": "banksim",
+        "schema_version": "1.0"
+      }
+    },
+    {
+      "partition": 0,
+      "offset": 1,
+      "key": "C114981535",
+      "value": {
+        "transaction_id": "4bb08b1d29766152c5a510f5",
+        "customer_id": "C114981535",
+        "merchant_id": "M1823072687",
+        "step": 125,
+        "event_time": "2020-05-05T00:00:00+00:00",
+        "ingestion_time": "2026-11-02T05:11:56.401620+00:00",
+        "amount": 8.6,
+        "category": "es_transportation",
+        "age_group": "3",
+        "gender": "F",
+        "zipcode_ori": "28007",
+        "zipcode_merchant": "28007",
+        "fraud_label": 0,
+        "data_source": "banksim",
+        "schema_version": "1.0"
+      }
+    },
+    {
+      "partition": 0,
+      "offset": 2,
+      "key": "C1705346216",
+      "value": {
+        "transaction_id": "d1870adfb4be3506cf5e1451",
+        "customer_id": "C1705346216",
+        "merchant_id": "M348934600",
+        "step": 125,
+        "event_time": "2020-05-05T00:00:00+00:00",
+        "ingestion_time": "2026-11-02T05:11:56.472805+00:00",
+        "amount": 19.15,
+        "category": "es_transportation",
+        "age_group": "3",
+        "gender": "M",
+        "zipcode_ori": "28007",
+        "zipcode_merchant": "28007",
+        "fraud_label": 0,
+        "data_source": "banksim",
+        "schema_version": "1.0"
+      }
+    }
+  ]
+}
