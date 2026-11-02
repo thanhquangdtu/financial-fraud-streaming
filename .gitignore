@@ -7,3 +7,4 @@ data/raw/*.csv
 data/processed/*.csv
 data/synthetic/*.csv
 data/reports/*.csv
+/ai/
