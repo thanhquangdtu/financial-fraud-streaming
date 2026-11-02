@@ -1,41 +1,41 @@
 {
-  "verified_at": "2026-11-02T05:32:34.251428+00:00",
+  "verified_at": "2026-11-02T11:28:16.643291+00:00",
   "bootstrap_servers": "localhost:9092",
   "topic": "transactions.raw",
   "partition_count": 3,
-  "total_messages": 200,
+  "total_messages": 100,
   "partitions": {
     "0": {
       "beginning_offset": 0,
-      "end_offset": 63,
-      "messages": 63
+      "end_offset": 35,
+      "messages": 35
     },
     "1": {
       "beginning_offset": 0,
-      "end_offset": 66,
-      "messages": 66
+      "end_offset": 29,
+      "messages": 29
     },
     "2": {
       "beginning_offset": 0,
-      "end_offset": 71,
-      "messages": 71
+      "end_offset": 36,
+      "messages": 36
     }
   },
   "sample_messages": [
     {
       "partition": 0,
       "offset": 0,
-      "key": "C114981535",
+      "key": "C74966273",
       "value": {
-        "transaction_id": "d6756b7bce12a2f1caf55b82",
-        "customer_id": "C114981535",
+        "transaction_id": "0e1b96baa4d2d202d35b73fb",
+        "customer_id": "C74966273",
         "merchant_id": "M348934600",
         "step": 125,
         "event_time": "2020-05-05T00:00:00+00:00",
-        "ingestion_time": "2026-11-02T05:11:56.381025+00:00",
-        "amount": 12.88,
+        "ingestion_time": "2026-11-02T11:28:06.149429+00:00",
+        "amount": 12.13,
         "category": "es_transportation",
-        "age_group": "3",
+        "age_group": "2",
         "gender": "F",
         "zipcode_ori": "28007",
         "zipcode_merchant": "28007",
@@ -47,18 +47,18 @@
     {
       "partition": 0,
       "offset": 1,
-      "key": "C114981535",
+      "key": "C966984015",
       "value": {
-        "transaction_id": "4bb08b1d29766152c5a510f5",
-        "customer_id": "C114981535",
+        "transaction_id": "20f580396faf7b05a136c145",
+        "customer_id": "C966984015",
         "merchant_id": "M1823072687",
         "step": 125,
         "event_time": "2020-05-05T00:00:00+00:00",
-        "ingestion_time": "2026-11-02T05:11:56.401620+00:00",
-        "amount": 8.6,
+        "ingestion_time": "2026-11-02T11:28:06.272837+00:00",
+        "amount": 15.18,
         "category": "es_transportation",
-        "age_group": "3",
-        "gender": "F",
+        "age_group": "4",
+        "gender": "M",
         "zipcode_ori": "28007",
         "zipcode_merchant": "28007",
         "fraud_label": 0,
@@ -69,17 +69,17 @@
     {
       "partition": 0,
       "offset": 2,
-      "key": "C1705346216",
+      "key": "C490092965",
       "value": {
-        "transaction_id": "d1870adfb4be3506cf5e1451",
-        "customer_id": "C1705346216",
+        "transaction_id": "2363302cbea5d2ef7fa6f8e4",
+        "customer_id": "C490092965",
         "merchant_id": "M348934600",
         "step": 125,
         "event_time": "2020-05-05T00:00:00+00:00",
-        "ingestion_time": "2026-11-02T05:11:56.472805+00:00",
-        "amount": 19.15,
+        "ingestion_time": "2026-11-02T11:28:06.335177+00:00",
+        "amount": 1.31,
         "category": "es_transportation",
-        "age_group": "3",
+        "age_group": "2",
         "gender": "M",
         "zipcode_ori": "28007",
         "zipcode_merchant": "28007",

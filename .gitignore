@@ -4,9 +4,5 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .env
-data/raw/*.csv
-data/processed/*.csv
-data/synthetic/*.csv
-data/reports/*.csv
 /ai/
-data/replay/
+

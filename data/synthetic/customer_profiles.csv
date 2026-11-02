@@ -1,0 +1,5 @@
+customer_id,behavior,baseline_amount,primary_category,data_source
+SYN_A,frequent_small,15,es_transportation,synthetic
+SYN_B,infrequent_high,350,es_hotelservices,synthetic
+SYN_C,category_focused,50,es_food,synthetic
+SYN_D,stable_then_burst,70,es_sportsandtoys,synthetic
