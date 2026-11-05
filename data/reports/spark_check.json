@@ -1,0 +1,19 @@
+{
+  "topic": "transactions.raw",
+  "kafka_messages": 700,
+  "valid_distinct_transactions_batch": 700,
+  "dead_letter_messages_stream": 0,
+  "daily_stats_total_tx_stream": 700,
+  "customer_week_total_tx_stream": 700,
+  "daily_stats_vs_batch": {
+    "stream_rows": 12,
+    "batch_rows": 12,
+    "mismatched_rows": 0
+  },
+  "customer_week_vs_batch": {
+    "stream_rows": 675,
+    "batch_rows": 675,
+    "mismatched_rows": 0
+  },
+  "passed": true
+}

@@ -7,7 +7,21 @@
     "fraud_counts": {
       "0": 587443,
       "1": 7200
-    }
+    },
+    "null_counts": {},
+    "amount": {
+      "min": 0.0,
+      "max": 8329.96,
+      "mean": 37.8901,
+      "zero_count": 52
+    },
+    "customers": {
+      "unique": 4112,
+      "tx_min": 5,
+      "tx_max": 265,
+      "tx_mean": 144.61
+    },
+    "step_order_violations": 0
   },
   "train": {
     "rows": 392733,
@@ -17,7 +31,21 @@
     "fraud_counts": {
       "0": 387733,
       "1": 5000
-    }
+    },
+    "null_counts": {},
+    "amount": {
+      "min": 0.0,
+      "max": 7665.56,
+      "mean": 38.2882,
+      "zero_count": 36
+    },
+    "customers": {
+      "unique": 4111,
+      "tx_min": 1,
+      "tx_max": 192,
+      "tx_mean": 95.53
+    },
+    "step_order_violations": 0
   },
   "validation": {
     "rows": 101793,
@@ -27,7 +55,21 @@
     "fraud_counts": {
       "0": 100673,
       "1": 1120
-    }
+    },
+    "null_counts": {},
+    "amount": {
+      "min": 0.0,
+      "max": 7134.39,
+      "mean": 37.3969,
+      "zero_count": 8
+    },
+    "customers": {
+      "unique": 4063,
+      "tx_min": 1,
+      "tx_max": 41,
+      "tx_mean": 25.05
+    },
+    "step_order_violations": 0
   },
   "test": {
     "rows": 100117,
@@ -37,7 +79,21 @@
     "fraud_counts": {
       "0": 99037,
       "1": 1080
-    }
+    },
+    "null_counts": {},
+    "amount": {
+      "min": 0.0,
+      "max": 8329.96,
+      "mean": 36.83,
+      "zero_count": 8
+    },
+    "customers": {
+      "unique": 4066,
+      "tx_min": 1,
+      "tx_max": 43,
+      "tx_mean": 24.62
+    },
+    "step_order_violations": 0
   },
   "synthetic": {
     "rows": 160,
@@ -47,6 +103,20 @@
     "fraud_counts": {
       "0": 0,
       "1": 0
-    }
+    },
+    "null_counts": {},
+    "amount": {
+      "min": 12.04,
+      "max": 417.86,
+      "mean": 130.6219,
+      "zero_count": 0
+    },
+    "customers": {
+      "unique": 4,
+      "tx_min": 40,
+      "tx_max": 40,
+      "tx_mean": 40.0
+    },
+    "step_order_violations": 3
   }
 }

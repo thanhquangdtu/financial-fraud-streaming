@@ -3,6 +3,7 @@ import csv
 from pathlib import Path
 
 from .common import ROOT, COLUMNS, write_json
+from .quality import extra_checks
 
 
 # ==============================================================================
@@ -126,6 +127,22 @@ def validate():
         "synthetic",
         True,
     )
+
+    # Additional DATA_CONTRACT section 7 checks (see quality.py): nulls, amount range,
+    # customer transaction counts, step ordering. Stats are merged into each file report.
+    extra_paths = {
+        name: (ROOT / f"data/processed/{name}.csv", "banksim", False, True)
+        for name in ("banksim_clean", "train", "validation", "test")
+    }
+    extra_paths["synthetic"] = (
+        ROOT / "data/synthetic/transactions.csv", "synthetic", True, False
+    )
+    for name, (path, source, allow_label, ordered) in extra_paths.items():
+        if reports[name]["rows"] == 0:
+            continue  # header problem already reported by check_csv
+        extra = extra_checks(path, source, allow_label, ordered)
+        reports[name].update(extra["stats"])
+        reports[name]["errors"].extend(extra["errors"])
 
     splits = [
         reports[n]
