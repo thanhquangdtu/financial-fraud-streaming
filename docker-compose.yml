@@ -57,6 +57,8 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
     working_dir: /workspace
     volumes:
       - .:/workspace
@@ -64,12 +66,36 @@ services:
     entrypoint:
       - /opt/spark/bin/spark-submit
       - --packages
-      - org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3
+      - org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3,org.postgresql:postgresql:42.7.4
       - --conf
       - spark.jars.ivy=/tmp/.ivy
+      - --conf
+      - spark.driver.extraJavaOptions=-Duser.timezone=UTC
     command: ["/workspace/src/financial_streaming/streaming/job.py"]
+
+  # PostgreSQL (Week 4). Tables are created from sql/init.sql on first start.
+  # Host access (dashboard / DBeaver): localhost:5432, db=fraud, user=fraud, password=fraud (local dev only).
+  postgres:
+    image: postgres:16
+    container_name: fraud-postgres
+    environment:
+      POSTGRES_DB: fraud
+      POSTGRES_USER: fraud
+      POSTGRES_PASSWORD: fraud
+      TZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraud -d fraud"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
 volumes:
   kafka-data:
   spark-ivy:
+  postgres-data:
 

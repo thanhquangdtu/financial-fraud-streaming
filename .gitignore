@@ -8,3 +8,5 @@ __pycache__/
 
 data/replay/
 data/spark_checkpoints/
+data/checkpoints/
+data/lake/

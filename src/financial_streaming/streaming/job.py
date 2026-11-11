@@ -17,10 +17,15 @@ The fraud label is not used by any aggregation.
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
+
+# The job is started as a plain script by spark-submit, so make the package importable (src/).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from financial_streaming.streaming.sql import DEAD_LETTER_UPSERT, upsert_sql  # noqa: E402
 
 SCHEMA = T.StructType([
     T.StructField("transaction_id", T.StringType()),
@@ -181,24 +186,86 @@ def kafka_reader(spark, args, streaming):
 # Hàm: run_live
 # - Mục đích: Thực thi job Spark Streaming trực tiếp (Production / Live mode).
 # - Điều cần chú ý:
-#   + Đọc stream từ Kafka, phân tích schema, loại bỏ dữ liệu hỏng vào `dead_letter`.
+#   + Đọc stream từ K      00000000000000000000000000000afka, phân tích schema, loại bỏ dữ liệu hỏng vào `dead_letter`.
 #   + Khử trùng lặp qua `dedup`.
 #   + Xuất luồng `daily_stats` (update mode), `customer_week` (update mode), và `dead_letter` (append mode).
 #   + Cấu hình checkpoint định kỳ cho từng luồng tại `args.checkpoint_dir`.
 # ==============================================================================
+def run_sql(spark, args, sql):
+    """Execute one SQL statement on PostgreSQL through the JVM JDBC driver (Spark's own JDBC writer
+    cannot do INSERT ... ON CONFLICT)."""
+    jvm = spark.sparkContext._gateway.jvm
+    loader = jvm.java.lang.Thread.currentThread().getContextClassLoader()
+    driver = jvm.java.lang.Class.forName("org.postgresql.Driver", True, loader).getDeclaredConstructor().newInstance()
+    props = jvm.java.util.Properties()
+    props.setProperty("user", args.pg_user)
+    props.setProperty("password", args.pg_password)
+    conn = driver.connect(args.pg_url, props)
+    try:
+        stmt = conn.createStatement()
+        stmt.execute(sql)
+        stmt.close()
+    finally:
+        conn.close()
+
+
+# ==============================================================================
+# Hàm: make_pg_writer
+# - Mục đích: Tạo hàm cho `foreachBatch` ghi mỗi micro-batch vào PostgreSQL một cách IDEMPOTENT.
+# - Điều cần chú ý:
+#   + Bước 1: ghi batch vào bảng tạm `stg_<name>` (JDBC, overwrite + truncate).
+#   + Bước 2: chạy `INSERT ... ON CONFLICT` (xem `streaming/sql.py`) từ bảng tạm sang bảng đích.
+#   + Nếu Spark chạy lại batch sau sự cố, kết quả trong DB không đổi (không trùng dòng).
+# ==============================================================================
+def make_pg_writer(spark, args, name, upsert):
+    def write(batch_df, batch_id):
+        if batch_df.rdd.isEmpty():
+            return
+        (batch_df.write.format("jdbc").option("url", args.pg_url).option("dbtable", f"stg_{name}")
+         .option("user", args.pg_user).option("password", args.pg_password)
+         .option("driver", "org.postgresql.Driver").option("truncate", "true").mode("overwrite").save())
+        run_sql(spark, args, upsert)
+    return write
+
+
+# ==============================================================================
+# Hàm: run_live
+# - Mục đích: Chạy job Spark Streaming trực tiếp, lưu kết quả bền vững (Tuần 4).
+# - Điều cần chú ý:
+#   + `transactions` (sự kiện đã khử trùng) -> PostgreSQL (DO NOTHING) và Parquet partition theo ngày.
+#   + `daily_stats`, `customer_week` (update mode) -> PostgreSQL (ghi đè giá trị mới nhất của cửa sổ).
+#   + `dead_letter` -> PostgreSQL (id = md5(raw)).
+#   + Mỗi query có checkpoint riêng trong `args.checkpoint_dir`; `--console` in thêm ra màn hình để xem.
+# ==============================================================================
 def run_live(spark, args):
     valid, dead = parse(kafka_reader(spark, args, True))
     clean = dedup(valid, args.watermark)
+    trigger = "5 seconds"
 
-    def sink(df, name, mode):
-        return (df.writeStream.queryName(name).outputMode(mode).format("console")
-                .option("truncate", "false").option("numRows", 30)
-                .option("checkpointLocation", f"{args.checkpoint_dir}/{name}")
-                .trigger(processingTime="5 seconds").start())
+    def start(df, name, mode, fmt=None, writer=None, **options):
+        w = df.writeStream.queryName(name).outputMode(mode).trigger(processingTime=trigger)
+        w = w.option("checkpointLocation", f"{args.checkpoint_dir}/{name}")
+        if writer is not None:
+            w = w.foreachBatch(writer)
+        else:
+            w = w.format(fmt)
+            for k, v in options.items():
+                w = w.option(k, v)
+        return w.start()
 
-    sink(daily_stats(clean), "daily_stats", "update")
-    sink(customer_week(clean), "customer_week", "update")
-    sink(dead, "dead_letter", "append")
+    start(clean, "transactions_pg", "append",
+          writer=make_pg_writer(spark, args, "transactions", upsert_sql("transactions")))
+    start(clean.withColumn("event_date", F.to_date("event_time")), "transactions_parquet", "append",
+          fmt="parquet", path=f"{args.lake_dir}/transactions")
+    start(daily_stats(clean), "daily_stats", "update",
+          writer=make_pg_writer(spark, args, "daily_stats", upsert_sql("daily_stats")))
+    start(customer_week(clean), "customer_week", "update",
+          writer=make_pg_writer(spark, args, "customer_week", upsert_sql("customer_week")))
+    start(dead, "dead_letter", "append",
+          writer=make_pg_writer(spark, args, "dead_letter", DEAD_LETTER_UPSERT))
+    if args.console:
+        for name, df in (("console_daily_stats", daily_stats(clean)), ("console_customer_week", customer_week(clean))):
+            start(df, name, "update", fmt="console", truncate="false", numRows=30)
     spark.streams.awaitAnyTermination()
 
 
@@ -276,7 +343,12 @@ def main(argv=None):
     p.add_argument("--topic", default="transactions.raw")
     p.add_argument("--starting-offsets", default="earliest")
     p.add_argument("--watermark", default="1 day")
-    p.add_argument("--checkpoint-dir", default="/workspace/data/spark_checkpoints")
+    p.add_argument("--checkpoint-dir", default="/workspace/data/checkpoints/live")
+    p.add_argument("--lake-dir", default="/workspace/data/lake", help="Parquet data lake root")
+    p.add_argument("--pg-url", default="jdbc:postgresql://postgres:5432/fraud")
+    p.add_argument("--pg-user", default="fraud")
+    p.add_argument("--pg-password", default="fraud")
+    p.add_argument("--console", action="store_true", help="also print window results to the console")
     p.add_argument("--reports-dir", default="/workspace/data/reports")
     p.add_argument("--check", action="store_true", help="process the current topic, compare with batch, exit")
     args = p.parse_args(argv)

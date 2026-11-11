@@ -162,3 +162,33 @@ financial-fraud-streaming/
 │       └── cli.py                      # Giao diện dòng lệnh: run, pause, resume, status, verify
 └── tests/unit/                         # 19 bài kiểm thử tự động (pytest)
 ```
+
+
+
+# Bước 1: Chạy 30 bài kiểm thử tự động (Unit Tests)
+.\.venv\Scripts\python.exe -m pytest -v
+
+# Bước 2: Khởi động cụm Docker (Kafka + Spark Streaming)
+docker compose up -d
+docker compose ps
+
+# Bước 3: Bắn thêm 100 giao dịch vào Kafka với tốc độ 50 sự kiện/giây
+.\.venv\Scripts\python.exe -m financial_streaming.producer.cli run --limit 100 --rate 50
+
+# Bước 4: Chạy kiểm chứng đối chiếu kết quả Streaming và Batch của Spark
+docker compose stop spark
+docker compose run --rm spark /workspace/src/financial_streaming/streaming/job.py --check
+
+docker compose up -d
+docker compose logs -f spark
+
+# Bắn liên tục ở tốc độ 20 giao dịch/giây (bỏ --limit)
+.\.venv\Scripts\python.exe -m financial_streaming.producer.cli run --rate 20
+
+
+
+# Tạm dừng luồng bắn (Producer sẽ đứng im chờ, không bị tắt)
+.\.venv\Scripts\python.exe -m financial_streaming.producer.cli pause
+
+# Cho chạy tiếp tục ngay tại vị trí vừa dừng
+.\.venv\Scripts\python.exe -m financial_streaming.producer.cli resume
