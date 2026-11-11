@@ -196,7 +196,7 @@ def run_sql(spark, args, sql):
     cannot do INSERT ... ON CONFLICT)."""
     jvm = spark.sparkContext._gateway.jvm
     loader = jvm.java.lang.Thread.currentThread().getContextClassLoader()
-    driver = jvm.java.lang.Class.forName("org.postgresql.Driver", True, loader).getDeclaredConstructor().newInstance()
+    driver = jvm.java.lang.Class.forName("org.postgresql.Driver", True, loader).newInstance()
     props = jvm.java.util.Properties()
     props.setProperty("user", args.pg_user)
     props.setProperty("password", args.pg_password)
