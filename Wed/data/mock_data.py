@@ -57,6 +57,11 @@ def generate_transactions(n: int = 800, seed: int = 42) -> pd.DataFrame:
         "fraud_prediction": fraud_prediction,
         "fraud_score": np.round(fraud_score, 4),
         "status": status,
+        "alert_reason": np.where(
+            fraud_prediction == 1,
+            "Số tiền vượt ngưỡng · Ngành hàng nhạy cảm",
+            "Giao dịch bình thường",
+        ),
     })
     return df.sort_values("event_time", ascending=False).reset_index(drop=True)
 
