@@ -63,7 +63,7 @@ def load_pipeline() -> dict:
                    (SELECT count(DISTINCT customer_id) FROM transactions) AS customers,
                    (SELECT count(DISTINCT merchant_id) FROM transactions) AS merchants,
                    (SELECT coalesce(sum(amount), 0)::float8 FROM transactions) AS amount,
-                   (SELECT coalesce(sum(fraud_label), 0) FROM transactions) AS fraud_labeled,
+                   (SELECT coalesce(sum(fraud_prediction), 0) FROM transactions) AS fraud_labeled,
                    (SELECT min(event_time) FROM transactions) AS time_min,
                    (SELECT max(event_time) FROM transactions) AS time_max,
                    (SELECT min(step) FROM transactions) AS step_min,
@@ -75,12 +75,12 @@ def load_pipeline() -> dict:
         by_source = _query(conn, "SELECT data_source, count(*) AS tx_count, coalesce(sum(amount),0)::float8 AS total_amount FROM transactions GROUP BY 1 ORDER BY 2 DESC")
         by_step = _query(conn, """
             SELECT step, min(event_time) AS event_time, count(*) AS tx_count,
-                   sum(amount)::float8 AS total_amount, coalesce(sum(fraud_label), 0) AS fraud_labeled
+                   sum(amount)::float8 AS total_amount, coalesce(sum(fraud_prediction), 0) AS fraud_labeled
             FROM transactions GROUP BY step ORDER BY step""")
         top_merchants = _query(conn, """
             SELECT merchant_id, category, count(*) AS tx_count,
                    sum(amount)::float8 AS total_amount,
-                   coalesce(sum(fraud_label), 0) AS fraud_count
+                   coalesce(sum(fraud_prediction), 0) AS fraud_count
             FROM transactions
             GROUP BY merchant_id, category
             ORDER BY tx_count DESC
@@ -88,13 +88,13 @@ def load_pipeline() -> dict:
         by_age = _query(conn, """
             SELECT coalesce(nullif(age_group, ''), 'U') AS age_group,
                    count(*) AS tx_count,
-                   coalesce(sum(fraud_label), 0) AS fraud_count
+                   coalesce(sum(fraud_prediction), 0) AS fraud_count
             FROM transactions
             GROUP BY 1 ORDER BY 1""")
         by_gender = _query(conn, """
             SELECT coalesce(nullif(gender, ''), 'U') AS gender,
                    count(*) AS tx_count,
-                   coalesce(sum(fraud_label), 0) AS fraud_count
+                   coalesce(sum(fraud_prediction), 0) AS fraud_count
             FROM transactions
             GROUP BY 1 ORDER BY 2 DESC""")
         dead = _query(conn, "SELECT id, left(raw, 300) AS raw, received_at FROM dead_letter "
@@ -120,7 +120,7 @@ def load_from_postgres(limit: int = 20000):
         transactions = _query(conn, f"""
             SELECT transaction_id, event_time, ingestion_time, customer_id, merchant_id, category,
                    amount::float8 AS amount, step, age_group, gender, data_source,
-                   COALESCE(fraud_label, 0) AS fraud_label
+                   COALESCE(fraud_prediction, 0) AS fraud_prediction, COALESCE(fraud_score, 0)::float8 AS fraud_score, COALESCE(fraud_label, 0) AS actual_label
             FROM transactions ORDER BY event_time DESC, transaction_id LIMIT {int(limit)}""")
         daily_stats = _query(conn, """
             SELECT window_start, window_end, category, tx_count,
@@ -134,9 +134,12 @@ def load_from_postgres(limit: int = 20000):
         conn.close()
 
     transactions["event_time"] = pd.to_datetime(transactions["event_time"], utc=True)
-    transactions["fraud_prediction"] = transactions["fraud_label"].astype(int)
-    transactions["fraud_score"] = transactions["fraud_prediction"].astype(float)
-    transactions["status"] = transactions["fraud_prediction"].map({1: "FLAGGED", 0: "NORMAL"})
+    transactions["fraud_prediction"] = transactions["fraud_prediction"].astype(int)
+    transactions["fraud_score"] = transactions["fraud_score"].astype(float).round(4)
+    transactions["status"] = [
+        "NORMAL" if pred == 0 else ("BLOCKED" if score >= 0.80 else "FLAGGED")
+        for pred, score in zip(transactions["fraud_prediction"], transactions["fraud_score"])
+    ]
 
     # Compute data-driven alert reasons so users/instructors can see WHY each transaction is suspicious
     cat_avg = transactions.groupby("category")["amount"].transform("mean").replace(0, 1.0).round(2)
@@ -169,7 +172,6 @@ def load_from_postgres(limit: int = 20000):
         reasons.append(" · ".join(tags))
 
     transactions["alert_reason"] = reasons
-    transactions = transactions.drop(columns=["fraud_label"])
     for col in ("window_start", "window_end"):
         daily_stats[col] = pd.to_datetime(daily_stats[col], utc=True)
         customer_week[col] = pd.to_datetime(customer_week[col], utc=True)

@@ -321,6 +321,7 @@ def order_tx_cols(df: pd.DataFrame) -> pd.DataFrame:
         "category",
         "amount",
         "category_avg",
+        "fraud_score",
         "status",
         "alert_reason",
         "event_time",
@@ -624,6 +625,52 @@ else:
                 style_fig(fig, 250)
                 st.plotly_chart(fig, use_container_width=True)
 
+            # Week 6 Benchmark Section (Throughput & Latency under different loads)
+            with st.container(border=True):
+                st.markdown(section_header("dashboard", "Benchmark Hiệu Năng Hệ Thống (Throughput & End-to-End Latency)", "#722ed1"), unsafe_allow_html=True)
+                bm_path = ROOT / "data" / "reports" / "benchmark_report.json"
+                if bm_path.is_file():
+                    bm = json.loads(bm_path.read_text(encoding="utf-8"))
+                    bm_df = pd.DataFrame(bm.get("scenarios", []))
+                    if not bm_df.empty:
+                        bm_view = bm_df.rename(columns={
+                            "target_rate_eps": "Mức tải mục tiêu (tx/s)",
+                            "events_sent": "Số giao dịch gửi",
+                            "events_scored_in_pg": "Đã chấm điểm ML & lưu PG",
+                            "data_loss": "Mất dữ liệu",
+                            "producer_rate_eps": "Tốc độ Producer (tx/s)",
+                            "e2e_throughput_eps": "Thông lượng toàn trình (tx/s)",
+                            "spark_sync_latency_sec": "Độ trễ đồng bộ Spark→PG (s)",
+                            "e2e_seconds": "Tổng thời gian (s)",
+                        })
+                        st.dataframe(bm_view, use_container_width=True, hide_index=True)
+                        b_left, b_right = st.columns(2)
+                        with b_left:
+                            bm_df["load_label"] = bm_df["target_rate_eps"].astype(int).astype(str) + " tx/s"
+                            fig_tp = px.bar(
+                                bm_df,
+                                x="load_label",
+                                y=["producer_rate_eps", "e2e_throughput_eps"],
+                                barmode="group",
+                                color_discrete_sequence=["#1677ff", "#52c41a"],
+                                labels={"load_label": "Mức tải", "value": "Giao dịch / giây (tx/s)", "variable": "Chỉ số"},
+                            )
+                            style_fig(fig_tp, 260)
+                            st.plotly_chart(fig_tp, use_container_width=True)
+                        with b_right:
+                            fig_lat = px.bar(
+                                bm_df,
+                                x="load_label",
+                                y="spark_sync_latency_sec",
+                                text="spark_sync_latency_sec",
+                                color_discrete_sequence=["#722ed1"],
+                                labels={"load_label": "Mức tải", "spark_sync_latency_sec": "Độ trễ đồng bộ Spark → PG (giây)"},
+                            )
+                            style_fig(fig_lat, 260)
+                            st.plotly_chart(fig_lat, use_container_width=True)
+                else:
+                    st.info("Chưa có báo cáo Benchmark. Chạy lệnh: `.\\.venv\\Scripts\\python.exe -m financial_streaming.benchmark` để đo 3 mức tải (50, 200, 500 tx/s).")
+
     elif page == "Sổ cái Giao dịch":
         with st.container(border=True):
             st.markdown(section_header("unordered-list", "Tra cứu & Lọc Sổ cái Giao dịch (PostgreSQL)", "#1677ff"), unsafe_allow_html=True)
@@ -665,13 +712,42 @@ else:
             )
 
     elif page == "Cảnh báo & Phân tích Gian lận":
-        k1, k2, k3 = st.columns(3)
+        ml_report_path = ROOT / "data" / "reports" / "ml_report.json"
+        ml_rep = json.loads(ml_report_path.read_text(encoding="utf-8")) if ml_report_path.is_file() else None
+        blocked_cnt = int((fraud["status"] == "BLOCKED").sum()) if not fraud.empty else 0
+        flagged_cnt = int((fraud["status"] == "FLAGGED").sum()) if not fraud.empty else 0
+
+        k1, k2, k3, k4 = st.columns(4)
         with k1:
-            st.markdown(kpi_card("alert", "Tổng giao dịch nghi ngờ", f"{len(fraud):,}", "Đang gắn cờ cảnh báo", "#ff4d4f"), unsafe_allow_html=True)
+            st.markdown(kpi_card("alert", "Tổng cảnh báo ML", f"{len(fraud):,}", f"BLOCKED: {blocked_cnt} · FLAGGED: {flagged_cnt}", "#ff4d4f"), unsafe_allow_html=True)
         with k2:
-            st.markdown(kpi_card("pie-chart", "Tỷ lệ gian lận", f"{fraud_rate:.2f}%", f"Trên tổng {total_count:,} giao dịch", "#faad14"), unsafe_allow_html=True)
+            st.markdown(kpi_card("pie-chart", "Tỷ lệ phát hiện (Stream)", f"{fraud_rate:.2f}%", f"Trên tổng {total_count:,} giao dịch", "#faad14"), unsafe_allow_html=True)
         with k3:
-            st.markdown(kpi_card("dollar", "Tổng giá trị rủi ro", f"${fraud['amount'].sum():,.2f}" if not fraud.empty else "$0.00", "Cần kiểm tra xác minh", "#722ed1"), unsafe_allow_html=True)
+            st.markdown(kpi_card("dollar", "Tổng giá trị rủi ro", f"${fraud['amount'].sum():,.2f}" if not fraud.empty else "$0.00", "Các giao dịch bị gắn cờ", "#722ed1"), unsafe_allow_html=True)
+        with k4:
+            if ml_rep:
+                te = ml_rep["test"]
+                st.markdown(
+                    kpi_card("check-circle", "Hiệu năng ML (Test Split)", f"F1: {te['f1']:.4f}", f"PR-AUC: {te['pr_auc']:.4f} · Ngưỡng: {te['threshold']}", "#52c41a"),
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(kpi_card("check-circle", "Mô hình ML", "GradientBoosting", "Đang chấm điểm trực tiếp", "#52c41a"), unsafe_allow_html=True)
+
+        if ml_rep:
+            st.write("")
+            with st.container(border=True):
+                st.markdown(section_header("safety-certificate", "Báo cáo Đánh giá Mô hình Machine Learning (GradientBoosting · 100 Trees)", "#52c41a"), unsafe_allow_html=True)
+                va, te, base_te = ml_rep["validation"], ml_rep["test"], ml_rep["baseline_amount_only"]["test"]
+                eval_df = pd.DataFrame([
+                    {"Tập đánh giá": "Validation Split (Step 125–152 · 101,793 dòng)", "Ngưỡng (Threshold)": va["threshold"],
+                     "Precision": va["precision"], "Recall": va["recall"], "F1-Score": va["f1"], "PR-AUC": va["pr_auc"], "ROC-AUC": va["roc_auc"]},
+                    {"Tập đánh giá": "Test Split độc lập (Step 153–179 · 100,117 dòng)", "Ngưỡng (Threshold)": te["threshold"],
+                     "Precision": te["precision"], "Recall": te["recall"], "F1-Score": te["f1"], "PR-AUC": te["pr_auc"], "ROC-AUC": te["roc_auc"]},
+                    {"Tập đánh giá": "Baseline (Chỉ lọc theo ngưỡng Số tiền)", "Ngưỡng (Threshold)": base_te["threshold"],
+                     "Precision": base_te["precision"], "Recall": base_te["recall"], "F1-Score": base_te["f1"], "PR-AUC": base_te["pr_auc"], "ROC-AUC": base_te["roc_auc"]},
+                ])
+                st.dataframe(eval_df, use_container_width=True, hide_index=True)
 
         st.write("")
         left, right = st.columns(2)
@@ -689,16 +765,53 @@ else:
         with right, st.container(border=True):
             st.markdown(section_header("user", "Phân tích Gian lận theo Nhóm tuổi & Giới tính", "#1677ff"), unsafe_allow_html=True)
             if pipeline and not pipeline["by_age"].empty:
+                AGE_LABELS = {
+                    "0": "0 (≤18 tuổi)",
+                    "1": "1 (19–25 tuổi)",
+                    "2": "2 (26–35 tuổi)",
+                    "3": "3 (36–45 tuổi)",
+                    "4": "4 (46–55 tuổi)",
+                    "5": "5 (56–65 tuổi)",
+                    "6": "6 (>65 tuổi)",
+                    "U": "U (Chưa rõ)",
+                }
+                GENDER_LABELS = {
+                    "F": "F · Nữ",
+                    "M": "M · Nam",
+                    "E": "E · Doanh nghiệp",
+                    "U": "U · Chưa rõ",
+                }
+                df_age = pipeline["by_age"].copy()
+                df_age["age_label"] = df_age["age_group"].astype(str).map(lambda x: AGE_LABELS.get(x, x))
+                df_gen = pipeline["by_gender"].copy()
+                df_gen["gender_label"] = df_gen["gender"].astype(str).map(lambda x: GENDER_LABELS.get(x, x))
+
                 c_age, c_gen = st.columns(2)
                 with c_age:
-                    fig_a = px.bar(pipeline["by_age"], x="age_group", y="fraud_count", color_discrete_sequence=["#faad14"],
-                                   labels={"age_group": "Nhóm tuổi", "fraud_count": "Số vụ gian lận"})
-                    style_fig(fig_a, 280)
+                    fig_a = px.bar(
+                        df_age,
+                        x="age_label",
+                        y="fraud_count",
+                        text="fraud_count",
+                        color_discrete_sequence=["#faad14"],
+                        labels={"age_label": "Nhóm tuổi", "fraud_count": "Số vụ nghi ngờ"},
+                    )
+                    style_fig(fig_a, 260)
                     st.plotly_chart(fig_a, use_container_width=True)
                 with c_gen:
-                    fig_g = px.pie(pipeline["by_gender"], names="gender", values="tx_count", hole=0.5, color_discrete_sequence=ANTD_COLORS)
-                    style_fig(fig_g, 280)
+                    fig_g = px.pie(
+                        df_gen,
+                        names="gender_label",
+                        values="tx_count",
+                        hole=0.5,
+                        color_discrete_sequence=ANTD_COLORS,
+                    )
+                    style_fig(fig_g, 260)
                     st.plotly_chart(fig_g, use_container_width=True)
+                st.caption(
+                    "📌 **Quy ước nhóm tuổi BankSim:** "
+                    "`0`: ≤18 · `1`: 19–25 · `2`: 26–35 · `3`: 36–45 · `4`: 46–55 · `5`: 56–65 · `6`: >65 tuổi · `U`: Chưa xác định."
+                )
 
         left, right = st.columns([1, 1.35])
         with left, st.container(border=True):
@@ -713,9 +826,9 @@ else:
                 )
         with right, st.container(border=True):
             st.markdown(section_header("alert", "Danh sách chi tiết các giao dịch nghi ngờ & Lý do cảnh báo", "#ff4d4f"), unsafe_allow_html=True)
-            alert_cols = ["transaction_id", "customer_id", "merchant_id", "category", "amount", "category_avg", "alert_reason", "status", "event_time"]
+            alert_cols = ["transaction_id", "customer_id", "merchant_id", "category", "amount", "category_avg", "fraud_score", "status", "alert_reason", "event_time"]
             alert_cols = [c for c in alert_cols if c in fraud.columns]
-            st.dataframe(fraud.sort_values("amount", ascending=False)[alert_cols], use_container_width=True, hide_index=True, height=320, column_config=COLUMN_CFG)
+            st.dataframe(fraud.sort_values("fraud_score", ascending=False)[alert_cols], use_container_width=True, hide_index=True, height=320, column_config=COLUMN_CFG)
 
     else:  # Hồ sơ Khách hàng 360
         if latest_week.empty:

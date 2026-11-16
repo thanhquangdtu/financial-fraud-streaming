@@ -17,7 +17,10 @@ CREATE TABLE IF NOT EXISTS transactions (
     zipcode_merchant  VARCHAR(16),
     fraud_label       INT,                     -- ground truth, never an ML feature
     data_source       VARCHAR(16)  NOT NULL,
-    schema_version    VARCHAR(8)   NOT NULL
+    schema_version    VARCHAR(8)   NOT NULL,
+    fraud_score       DOUBLE PRECISION,        -- Week 5: model probability 0..1
+    fraud_prediction  INT,                     -- Week 5: 1 if fraud_score >= model threshold
+    model_version     VARCHAR(32)
 );
 CREATE INDEX IF NOT EXISTS idx_transactions_event_time ON transactions (event_time DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_customer   ON transactions (customer_id);

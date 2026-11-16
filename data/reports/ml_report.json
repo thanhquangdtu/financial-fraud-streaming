@@ -1,0 +1,66 @@
+{
+  "model": "GradientBoostingClassifier",
+  "params": {
+    "trees": 100,
+    "depth": 4,
+    "learning_rate": 0.1,
+    "seed": 42,
+    "subsample": 0.8
+  },
+  "features": 79,
+  "feature_note": "amount, log(amount), one-hot of category/age_group/gender/merchant_id (vocabulary from train only); fraud_label is never a feature",
+  "train": {
+    "rows": 392733,
+    "fraud": 5000,
+    "seconds": 121.4
+  },
+  "threshold_chosen_on": "validation (max F1)",
+  "validation": {
+    "threshold": 0.2321,
+    "precision": 0.8306,
+    "recall": 0.8187,
+    "f1": 0.8246,
+    "flagged": 1104,
+    "actual_fraud": 1120,
+    "pr_auc": 0.8917,
+    "roc_auc": 0.9976,
+    "rows": 101793
+  },
+  "test": {
+    "threshold": 0.2321,
+    "precision": 0.8533,
+    "recall": 0.8028,
+    "f1": 0.8273,
+    "flagged": 1016,
+    "actual_fraud": 1080,
+    "pr_auc": 0.9039,
+    "roc_auc": 0.9979,
+    "rows": 100117
+  },
+  "baseline_amount_only": {
+    "validation": {
+      "threshold": 205.1903,
+      "precision": 0.6249,
+      "recall": 0.6679,
+      "f1": 0.6457,
+      "flagged": 1197,
+      "actual_fraud": 1120,
+      "pr_auc": 0.7066,
+      "roc_auc": 0.9493,
+      "rows": 101793
+    },
+    "test": {
+      "threshold": 205.1903,
+      "precision": 0.6241,
+      "recall": 0.6565,
+      "f1": 0.6399,
+      "flagged": 1136,
+      "actual_fraud": 1080,
+      "pr_auc": 0.6989,
+      "roc_auc": 0.9386,
+      "rows": 100117
+    },
+    "rule": "flag amount >= 205.19 (top 1.27% of train amounts)"
+  },
+  "export_max_abs_diff_vs_sklearn": 1.1102230246251565e-15
+}

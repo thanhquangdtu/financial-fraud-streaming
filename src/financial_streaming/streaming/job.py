@@ -25,7 +25,7 @@ from pyspark.sql import types as T
 
 # The job is started as a plain script by spark-submit, so make the package importable (src/).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from financial_streaming.streaming.sql import DEAD_LETTER_UPSERT, upsert_sql  # noqa: E402
+from financial_streaming.streaming.sql import DEAD_LETTER_UPSERT, MIGRATION_SQL, upsert_sql  # noqa: E402
 
 SCHEMA = T.StructType([
     T.StructField("transaction_id", T.StringType()),
@@ -238,8 +238,13 @@ def make_pg_writer(spark, args, name, upsert):
 #   + Mỗi query có checkpoint riêng trong `args.checkpoint_dir`; `--console` in thêm ra màn hình để xem.
 # ==============================================================================
 def run_live(spark, args):
+    from financial_streaming.streaming.scoring import load_model, score_transactions
+
+    run_sql(spark, args, MIGRATION_SQL)  # Week 5 columns on databases created in Week 4 (idempotent)
+    model = load_model(args.model)
     valid, dead = parse(kafka_reader(spark, args, True))
     clean = dedup(valid, args.watermark)
+    scored = score_transactions(clean, model)
     trigger = "5 seconds"
 
     def start(df, name, mode, fmt=None, writer=None, **options):
@@ -253,7 +258,8 @@ def run_live(spark, args):
                 w = w.option(k, v)
         return w.start()
 
-    start(clean, "transactions_pg", "append",
+    # New query name -> new checkpoint: Spark re-reads Kafka once so every stored transaction gets a score.
+    start(scored, "transactions_scored_pg", "append",
           writer=make_pg_writer(spark, args, "transactions", upsert_sql("transactions")))
     start(clean.withColumn("event_date", F.to_date("event_time")), "transactions_parquet", "append",
           fmt="parquet", path=f"{args.lake_dir}/transactions")
@@ -349,6 +355,7 @@ def main(argv=None):
     p.add_argument("--pg-user", default="fraud")
     p.add_argument("--pg-password", default="fraud")
     p.add_argument("--console", action="store_true", help="also print window results to the console")
+    p.add_argument("--model", default="/workspace/data/models/fraud_gbt.json", help="exported fraud model (ml/train.py)")
     p.add_argument("--reports-dir", default="/workspace/data/reports")
     p.add_argument("--check", action="store_true", help="process the current topic, compare with batch, exit")
     args = p.parse_args(argv)

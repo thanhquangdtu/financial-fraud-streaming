@@ -18,9 +18,10 @@ def test_key_must_be_a_column():
         build_upsert("t", "s", ["a"], ["x"], True)
 
 
-def test_transactions_never_overwritten_and_keyed_by_id():
+def test_transactions_keyed_by_id_and_only_scores_are_refreshed():
     sql = upsert_sql("transactions")
-    assert "ON CONFLICT (transaction_id) DO NOTHING" in sql
+    assert "ON CONFLICT (transaction_id) DO UPDATE SET fraud_score = EXCLUDED.fraud_score" in sql
+    assert "amount = EXCLUDED" not in sql and "ingestion_time = EXCLUDED" not in sql
 
 
 def test_all_tables_have_valid_keys():
