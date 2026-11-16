@@ -11,6 +11,26 @@ from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
+_HIST_CACHE: dict | None = None
+
+
+def _customer_history() -> tuple[dict[str, float], dict[str, set[str]], dict[str, float], float]:
+    """Load each customer's historical normal baseline, visited categories & merchant fraud rates from train.csv."""
+    global _HIST_CACHE
+    if _HIST_CACHE is not None and "merch_fraud" in _HIST_CACHE:
+        return _HIST_CACHE["avg"], _HIST_CACHE["cats"], _HIST_CACHE["merch_fraud"], _HIST_CACHE["global_avg"]
+    train_path = ROOT / "data" / "processed" / "train.csv"
+    if not train_path.is_file():
+        _HIST_CACHE = {"avg": {}, "cats": {}, "merch_fraud": {}, "global_avg": 37.89}
+        return {}, {}, {}, 37.89
+    tr = pd.read_csv(train_path, usecols=["customer_id", "merchant_id", "amount", "category", "fraud_label"])
+    normal = tr[tr["fraud_label"] == 0]
+    avg_map = normal.groupby("customer_id")["amount"].mean().round(2).to_dict()
+    cats_map = normal.groupby("customer_id")["category"].agg(set).to_dict()
+    merch_fraud = (tr.groupby("merchant_id")["fraud_label"].mean() * 100.0).round(1).to_dict()
+    global_avg = round(float(normal["amount"].mean()), 2)
+    _HIST_CACHE = {"avg": avg_map, "cats": cats_map, "merch_fraud": merch_fraud, "global_avg": global_avg}
+    return avg_map, cats_map, merch_fraud, global_avg
 
 
 def _query(conn, sql: str) -> pd.DataFrame:
@@ -141,10 +161,19 @@ def load_from_postgres(limit: int = 20000):
         for pred, score in zip(transactions["fraud_prediction"], transactions["fraud_score"])
     ]
 
-    # Compute data-driven alert reasons so users/instructors can see WHY each transaction is suspicious
+    # Compute per-customer historical normal baseline from train.csv (125 days of history) + normal stream rows
+    hist_avg_map, hist_cats_map, merch_fraud_map, global_normal_avg = _customer_history()
+    normal_mask = transactions["fraud_prediction"] == 0
+    stream_normal_avg = transactions[normal_mask].groupby("customer_id")["amount"].mean().round(2).to_dict()
+    cust_baseline_map = {**stream_normal_avg, **hist_avg_map}
+
+    cust_avg = transactions["customer_id"].map(cust_baseline_map).fillna(global_normal_avg).replace(0, 1.0).round(2)
     cat_avg = transactions.groupby("category")["amount"].transform("mean").replace(0, 1.0).round(2)
+    transactions["cust_avg"] = cust_avg
     transactions["category_avg"] = cat_avg
-    ratio = transactions["amount"] / cat_avg
+
+    cust_ratio = transactions["amount"] / cust_avg
+    cat_ratio = transactions["amount"] / cat_avg
     cust_freq = transactions.groupby(["customer_id", "step"])["transaction_id"].transform("count")
     fraud_merchants = set(
         transactions[transactions["fraud_prediction"] == 1]["merchant_id"]
@@ -154,21 +183,27 @@ def load_from_postgres(limit: int = 20000):
     )
 
     reasons = []
-    for row, c_avg, r_val, c_cnt in zip(transactions.itertuples(index=False), cat_avg, ratio, cust_freq):
+    for row, u_avg, u_rat, c_avg, c_rat, c_cnt in zip(
+        transactions.itertuples(index=False), cust_avg, cust_ratio, cat_avg, cat_ratio, cust_freq
+    ):
+        known_cats = hist_cats_map.get(row.customer_id, set())
+        m_rate = merch_fraud_map.get(row.merchant_id, 0.0)
         if row.fraud_prediction == 0:
-            reasons.append(f"Bình thường (TB ngành: ${c_avg:,.2f})")
+            reasons.append(f"Đúng thói quen khách (TB khách: ${u_avg:,.2f})")
             continue
         tags = []
-        if row.amount >= 500 or r_val >= 2.0:
-            tags.append(f"Số tiền cao (${row.amount:,.2f} vs TB ngành ${c_avg:,.2f} · gấp {r_val:.1f}x)")
+        if u_rat >= 1.5:
+            tags.append(f"Vọt gấp {u_rat:.1f}x TB thường ngày của khách (${row.amount:,.2f} vs TB khách ${u_avg:,.2f})")
+        elif c_rat >= 1.5 or row.amount >= 300:
+            tags.append(f"Vượt chuẩn ngành {c_rat:.1f}x (${row.amount:,.2f} vs TB ngành ${c_avg:,.2f})")
         else:
-            tags.append(f"TB ngành: ${c_avg:,.2f} ({r_val:.1f}x)")
-        if row.merchant_id in fraud_merchants:
-            tags.append(f"Merchant điểm nóng ({row.merchant_id})")
+            tags.append(f"Lệch hồ sơ khách (TB khách: ${u_avg:,.2f})")
+        if known_cats and row.category not in known_cats:
+            tags.append(f"Ngành mới lạ (chưa từng mua {row.category.replace('es_', '')} trong 125 ngày)")
         if c_cnt >= 2:
-            tags.append(f"Quẹt liên tiếp ({c_cnt} lần/ngày)")
-        if row.category in ("es_travel", "es_sportsandtoys", "es_hotelservices", "es_health", "es_wellnessandbeauty"):
-            tags.append(f"Ngành nhạy cảm ({row.category.replace('es_', '')})")
+            tags.append(f"Tần suất đột biến ({c_cnt} GD/ngày)")
+        if m_rate >= 10.0 or row.merchant_id in fraud_merchants:
+            tags.append(f"Merchant rủi ro {row.merchant_id} ({m_rate:.1f}% GD lịch sử là gian lận)")
         reasons.append(" · ".join(tags))
 
     transactions["alert_reason"] = reasons

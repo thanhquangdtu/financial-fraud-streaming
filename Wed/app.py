@@ -304,9 +304,10 @@ COLUMN_CFG = {
     "merchant_id": st.column_config.TextColumn("Merchant", width="small"),
     "category": st.column_config.TextColumn("Ngành hàng", width="medium"),
     "amount": st.column_config.NumberColumn("Số tiền", format="$%.2f", width="small"),
+    "cust_avg": st.column_config.NumberColumn("TB của khách", format="$%.2f", width="small"),
     "category_avg": st.column_config.NumberColumn("TB ngành", format="$%.2f", width="small"),
     "status": st.column_config.TextColumn("Trạng thái", width="small"),
-    "alert_reason": st.column_config.TextColumn("Lý do cảnh báo / Dấu hiệu bất thường", width="large"),
+    "alert_reason": st.column_config.TextColumn("Biến động hành vi khách hàng / Lý do cảnh báo", width="large"),
     "fraud_score": st.column_config.ProgressColumn("Mức rủi ro", min_value=0, max_value=1, format="%.4f", width="small"),
     "event_time": st.column_config.DatetimeColumn("Thời gian sự kiện (UTC)", format="DD/MM/YYYY HH:mm:ss"),
     "ingestion_time": st.column_config.DatetimeColumn("Thời điểm nạp (UTC)", format="DD/MM/YYYY HH:mm:ss"),
@@ -317,10 +318,11 @@ def order_tx_cols(df: pd.DataFrame) -> pd.DataFrame:
     preferred = [
         "transaction_id",
         "customer_id",
-        "merchant_id",
-        "category",
         "amount",
+        "cust_avg",
         "category_avg",
+        "category",
+        "merchant_id",
         "fraud_score",
         "status",
         "alert_reason",
@@ -825,8 +827,8 @@ else:
                     column_config={"total_amount": st.column_config.NumberColumn("Tổng tiền", format="$%.2f")},
                 )
         with right, st.container(border=True):
-            st.markdown(section_header("alert", "Danh sách chi tiết các giao dịch nghi ngờ & Lý do cảnh báo", "#ff4d4f"), unsafe_allow_html=True)
-            alert_cols = ["transaction_id", "customer_id", "merchant_id", "category", "amount", "category_avg", "fraud_score", "status", "alert_reason", "event_time"]
+            st.markdown(section_header("alert", "Danh sách chi tiết các giao dịch nghi ngờ & Biến động hành vi khách hàng", "#ff4d4f"), unsafe_allow_html=True)
+            alert_cols = ["transaction_id", "customer_id", "amount", "cust_avg", "category_avg", "category", "merchant_id", "fraud_score", "status", "alert_reason", "event_time"]
             alert_cols = [c for c in alert_cols if c in fraud.columns]
             st.dataframe(fraud.sort_values("fraud_score", ascending=False)[alert_cols], use_container_width=True, hide_index=True, height=320, column_config=COLUMN_CFG)
 
@@ -882,8 +884,8 @@ else:
                     st.plotly_chart(fig, use_container_width=True)
 
                 with st.container(border=True):
-                    st.markdown(section_header("clock-circle", "Lịch sử giao dịch chi tiết của khách hàng", "#52c41a"), unsafe_allow_html=True)
-                    cust_cols = [c for c in ["event_time", "transaction_id", "merchant_id", "category", "amount", "status", "alert_reason"] if c in customer_tx.columns]
+                    st.markdown(section_header("clock-circle", "Lịch sử giao dịch chi tiết của khách hàng (Đối chiếu TB thường ngày)", "#52c41a"), unsafe_allow_html=True)
+                    cust_cols = [c for c in ["event_time", "transaction_id", "amount", "cust_avg", "category", "merchant_id", "fraud_score", "status", "alert_reason"] if c in customer_tx.columns]
                     st.dataframe(
                         customer_tx.sort_values("event_time", ascending=False)[cust_cols],
                         use_container_width=True,

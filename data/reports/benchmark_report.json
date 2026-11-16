@@ -1,0 +1,44 @@
+{
+  "measured_at": "2026-11-16T04:03:38.101778+00:00",
+  "pipeline": "Producer -> Kafka (3 partitions) -> Spark 3.5.3 (Dedup + 100-tree GBT ML Scoring) -> PostgreSQL 16",
+  "spark_trigger_interval": "5 seconds",
+  "scenarios": [
+    {
+      "target_rate_eps": 50.0,
+      "events_sent": 150,
+      "events_scored_in_pg": 150,
+      "data_loss": 0,
+      "producer_seconds": 2.983,
+      "producer_rate_eps": 50.28,
+      "e2e_seconds": 12.615,
+      "e2e_throughput_eps": 11.89,
+      "spark_sync_latency_sec": 9.632,
+      "passed": true
+    },
+    {
+      "target_rate_eps": 200.0,
+      "events_sent": 300,
+      "events_scored_in_pg": 300,
+      "data_loss": 0,
+      "producer_seconds": 1.512,
+      "producer_rate_eps": 198.4,
+      "e2e_seconds": 10.352,
+      "e2e_throughput_eps": 28.98,
+      "spark_sync_latency_sec": 8.84,
+      "passed": true
+    },
+    {
+      "target_rate_eps": 500.0,
+      "events_sent": 500,
+      "events_scored_in_pg": 500,
+      "data_loss": 0,
+      "producer_seconds": 1.018,
+      "producer_rate_eps": 491.27,
+      "e2e_seconds": 13.677,
+      "e2e_throughput_eps": 36.56,
+      "spark_sync_latency_sec": 12.659,
+      "passed": true
+    }
+  ],
+  "all_passed": true
+}
