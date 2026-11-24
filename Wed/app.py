@@ -21,7 +21,7 @@ importlib.reload(_db_mod)
 importlib.reload(_mock_mod)
 
 from antd_icons import antd_svg, kpi_card, section_header
-from data.db import load_from_postgres, load_pipeline
+from data.db import load_customer_past_tx, load_from_postgres, load_pipeline
 from data.mock_data import build_customer_week, build_daily_stats, generate_transactions
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -817,6 +817,26 @@ else:
 
         left, right = st.columns([1, 1.35])
         with left, st.container(border=True):
+            st.markdown(section_header("user", "Top khách hàng có nhiều giao dịch bất thường nhất", "#ff4d4f"), unsafe_allow_html=True)
+            if pipeline and not pipeline.get("top_flagged", pd.DataFrame()).empty:
+                st.dataframe(
+                    pipeline["top_flagged"],
+                    use_container_width=True,
+                    hide_index=True,
+                    height=320,
+                    column_config={
+                        "customer_id": st.column_config.TextColumn("Khách hàng"),
+                        "flagged_tx": st.column_config.NumberColumn("GD bị gắn cờ"),
+                        "total_tx": st.column_config.NumberColumn("Tổng GD"),
+                        "flagged_pct": st.column_config.NumberColumn("% bị gắn cờ", format="%.1f%%"),
+                        "flagged_amount": st.column_config.NumberColumn("Tổng tiền bị gắn cờ", format="$%.2f"),
+                        "max_score": st.column_config.ProgressColumn("Điểm rủi ro cao nhất", min_value=0, max_value=1, format="%.4f"),
+                    },
+                )
+                st.caption("Sắp xếp theo số giao dịch bị mô hình gắn cờ, rồi theo tổng tiền. Chọn mã ở trang Khách hàng 360 để xem chi tiết.")
+            else:
+                st.info("Chưa có khách hàng nào bị gắn cờ.")
+        with right, st.container(border=True):
             st.markdown(section_header("shop", "Top Đối tác (Merchants) theo lưu lượng & rủi ro", "#722ed1"), unsafe_allow_html=True)
             if pipeline and not pipeline["top_merchants"].empty:
                 st.dataframe(
@@ -826,7 +846,7 @@ else:
                     height=320,
                     column_config={"total_amount": st.column_config.NumberColumn("Tổng tiền", format="$%.2f")},
                 )
-        with right, st.container(border=True):
+        with st.container(border=True):
             st.markdown(section_header("alert", "Danh sách chi tiết các giao dịch nghi ngờ & Biến động hành vi khách hàng", "#ff4d4f"), unsafe_allow_html=True)
             alert_cols = ["transaction_id", "customer_id", "amount", "cust_avg", "category_avg", "category", "merchant_id", "fraud_score", "status", "alert_reason", "event_time"]
             alert_cols = [c for c in alert_cols if c in fraud.columns]
@@ -852,44 +872,83 @@ else:
                 profile = windows.iloc[0]
                 avg_tx = latest_week["tx_count"].mean()
                 avg_spend = latest_week["total_amount"].mean()
-                p1, p2, p3, p4 = st.columns(4)
+
+                customer_stream_tx = transactions[transactions["customer_id"] == chosen].copy()
+                if not customer_stream_tx.empty:
+                    customer_stream_tx["stage"] = "🟢 Luồng Streaming mới (PostgreSQL)"
+                past_tx = load_customer_past_tx(chosen) if source == "postgres" else pd.DataFrame()
+                past_normal_cnt = int((past_tx["fraud_label"] == 0).sum()) if not past_tx.empty and "fraud_label" in past_tx.columns else len(past_tx)
+                past_avg_val = float(past_tx["cust_avg"].iloc[0]) if not past_tx.empty else float(customer_stream_tx["cust_avg"].iloc[0]) if not customer_stream_tx.empty else 0.0
+
+                p1, p2, p3, p4, p5 = st.columns(5)
                 with p1:
-                    st.markdown(kpi_card("unordered-list", "Số giao dịch / 7 ngày", f"{int(profile['tx_count'])}", f"{profile['tx_count'] - avg_tx:+.1f} so với TB hệ thống", "#1677ff"), unsafe_allow_html=True)
+                    st.markdown(
+                        kpi_card("database", "Hồ sơ lịch sử (125 ngày)", f"TB: ${past_avg_val:,.2f}", f"{past_normal_cnt} giao dịch thường ngày", "#52c41a"),
+                        unsafe_allow_html=True,
+                    )
                 with p2:
-                    st.markdown(kpi_card("dollar", "Tổng chi tiêu / 7 ngày", f"${profile['total_amount']:,.2f}", f"{profile['total_amount'] - avg_spend:+,.0f}$ so với TB", "#13c2c2"), unsafe_allow_html=True)
+                    st.markdown(kpi_card("unordered-list", "Số GD tuần mới nhất", f"{int(profile['tx_count'])}", f"{profile['tx_count'] - avg_tx:+.1f} so với TB hệ thống", "#1677ff"), unsafe_allow_html=True)
                 with p3:
-                    st.markdown(kpi_card("bar-chart", "Trung bình / giao dịch", f"${profile['avg_amount']:,.2f}", "Trong cửa sổ tuần", "#52c41a"), unsafe_allow_html=True)
+                    st.markdown(kpi_card("dollar", "Chi tiêu tuần mới nhất", f"${profile['total_amount']:,.2f}", f"{profile['total_amount'] - avg_spend:+,.0f}$ so với TB", "#13c2c2"), unsafe_allow_html=True)
                 with p4:
-                    st.markdown(kpi_card("shop", "Số ngành hàng đã mua", f"{int(profile['distinct_categories'])}", "Độ đa dạng chi tiêu", "#722ed1"), unsafe_allow_html=True)
+                    st.markdown(kpi_card("bar-chart", "TB tuần mới nhất", f"${profile['avg_amount']:,.2f}", f"So với TB gốc ${past_avg_val:,.2f}", "#faad14"), unsafe_allow_html=True)
+                with p5:
+                    st.markdown(kpi_card("shop", "Số ngành hàng (7 ngày)", f"{int(profile['distinct_categories'])}", "Độ đa dạng chi tiêu", "#722ed1"), unsafe_allow_html=True)
 
                 st.write("")
-                customer_tx = transactions[transactions["customer_id"] == chosen].copy()
+                combined_tx = pd.concat([customer_stream_tx, past_tx], ignore_index=True) if not past_tx.empty else customer_stream_tx
                 left, right = st.columns(2)
                 with left, st.container(border=True):
-                    st.markdown(section_header("pie-chart", "Cơ cấu chi tiêu theo ngành hàng", "#13c2c2"), unsafe_allow_html=True)
-                    if customer_tx.empty:
-                        st.info("Khách hàng này không nằm trong 20,000 giao dịch gần nhất.")
+                    st.markdown(section_header("pie-chart", "Cơ cấu chi tiêu theo ngành hàng (Toàn bộ lịch sử + Stream)", "#13c2c2"), unsafe_allow_html=True)
+                    if combined_tx.empty:
+                        st.info("Chưa có giao dịch chi tiết.")
                     else:
-                        by_cat = customer_tx.groupby("category", as_index=False)["amount"].sum()
+                        by_cat = combined_tx.groupby("category", as_index=False)["amount"].sum()
                         fig = px.pie(by_cat, names="category", values="amount", hole=0.5, color_discrete_sequence=ANTD_COLORS)
                         style_fig(fig, 290)
                         st.plotly_chart(fig, use_container_width=True)
                 with right, st.container(border=True):
-                    st.markdown(section_header("bar-chart", "Biến động chi tiêu qua các cửa sổ 7 ngày", "#1677ff"), unsafe_allow_html=True)
-                    wk = windows.sort_values("window_start").copy()
-                    wk["tuần"] = wk["window_start"].dt.strftime("%d/%m/%Y")
-                    fig = px.bar(wk, x="tuần", y="total_amount", text="tx_count", color_discrete_sequence=["#1677ff"],
-                                 labels={"tuần": "Bắt đầu tuần", "total_amount": "Tổng chi tiêu (USD)"})
-                    style_fig(fig, 290)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.markdown(section_header("bar-chart", "So sánh Số tiền từng giao dịch với Mức TB thường ngày của khách", "#1677ff"), unsafe_allow_html=True)
+                    if not combined_tx.empty:
+                        plot_tx = combined_tx.sort_values("event_time").copy()
+                        plot_tx["ngày"] = plot_tx["event_time"].dt.strftime("%d/%m/%Y")
+                        fig = px.bar(
+                            plot_tx,
+                            x="ngày",
+                            y="amount",
+                            color="stage" if "stage" in plot_tx.columns else None,
+                            text="amount",
+                            color_discrete_sequence=["#52c41a", "#ff4d4f"],
+                            labels={"ngày": "Ngày giao dịch", "amount": "Số tiền ($)", "stage": "Giai đoạn"},
+                        )
+                        fig.add_hline(
+                            y=past_avg_val,
+                            line_dash="dash",
+                            line_color="#1677ff",
+                            annotation_text=f"TB thường ngày: ${past_avg_val:,.2f}",
+                            annotation_position="top left",
+                        )
+                        style_fig(fig, 290)
+                        st.plotly_chart(fig, use_container_width=True)
 
                 with st.container(border=True):
-                    st.markdown(section_header("clock-circle", "Lịch sử giao dịch chi tiết của khách hàng (Đối chiếu TB thường ngày)", "#52c41a"), unsafe_allow_html=True)
-                    cust_cols = [c for c in ["event_time", "transaction_id", "amount", "cust_avg", "category", "merchant_id", "fraud_score", "status", "alert_reason"] if c in customer_tx.columns]
+                    st.markdown(
+                        section_header(
+                            "clock-circle",
+                            f"Toàn bộ Lịch sử Giao dịch của {chosen}: {len(customer_stream_tx)} GD mới (Stream) + {len(past_tx)} GD quá khứ (Train · TB ${past_avg_val:,.2f})",
+                            "#52c41a",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                    cust_cols = [
+                        c
+                        for c in ["stage", "event_time", "transaction_id", "amount", "cust_avg", "category", "merchant_id", "fraud_score", "status", "alert_reason"]
+                        if c in combined_tx.columns
+                    ]
                     st.dataframe(
-                        customer_tx.sort_values("event_time", ascending=False)[cust_cols],
+                        combined_tx.sort_values("event_time", ascending=False)[cust_cols],
                         use_container_width=True,
                         hide_index=True,
-                        height=300,
-                        column_config=COLUMN_CFG,
+                        height=380,
+                        column_config={**COLUMN_CFG, "stage": st.column_config.TextColumn("Giai đoạn dữ liệu", width="medium")},
                     )

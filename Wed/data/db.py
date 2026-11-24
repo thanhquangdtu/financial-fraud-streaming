@@ -29,8 +29,41 @@ def _customer_history() -> tuple[dict[str, float], dict[str, set[str]], dict[str
     cats_map = normal.groupby("customer_id")["category"].agg(set).to_dict()
     merch_fraud = (tr.groupby("merchant_id")["fraud_label"].mean() * 100.0).round(1).to_dict()
     global_avg = round(float(normal["amount"].mean()), 2)
-    _HIST_CACHE = {"avg": avg_map, "cats": cats_map, "merch_fraud": merch_fraud, "global_avg": global_avg}
+    _HIST_CACHE = {"avg": avg_map, "cats": cats_map, "merch_fraud": merch_fraud, "global_avg": global_avg, "df": tr}
     return avg_map, cats_map, merch_fraud, global_avg
+
+
+def load_customer_past_tx(customer_id: str) -> pd.DataFrame:
+    """Return all historical transactions (Step 0-124 in train.csv) for one customer."""
+    _customer_history()
+    if not _HIST_CACHE or "df" not in _HIST_CACHE:
+        return pd.DataFrame()
+    train_path = ROOT / "data" / "processed" / "train.csv"
+    if not train_path.is_file():
+        return pd.DataFrame()
+    # Read full columns only for the matching customer from cached index or light scan
+    if "full_by_cust" not in _HIST_CACHE:
+        full_tr = pd.read_csv(
+            train_path,
+            usecols=["transaction_id", "customer_id", "merchant_id", "step", "event_time", "amount", "category", "fraud_label"],
+        )
+        _HIST_CACHE["full_by_cust"] = {cid: grp for cid, grp in full_tr.groupby("customer_id")}
+    sub = _HIST_CACHE["full_by_cust"].get(customer_id)
+    if sub is None or sub.empty:
+        return pd.DataFrame()
+    out = sub.copy()
+    out["event_time"] = pd.to_datetime(out["event_time"], utc=True)
+    normal_avg = out[out["fraud_label"] == 0]["amount"].mean()
+    out["cust_avg"] = round(float(normal_avg if pd.notna(normal_avg) else out["amount"].mean()), 2)
+    out["fraud_score"] = out["fraud_label"].astype(float)
+    out["status"] = out["fraud_label"].map({1: "FLAGGED (Lịch sử)", 0: "NORMAL (Lịch sử)"})
+    out["stage"] = "📘 Lịch sử 125 ngày trước (Train)"
+    out["alert_reason"] = out["fraud_label"].map(
+        lambda x: f"Giao dịch thường ngày trong quá khứ (TB khách: ${out['cust_avg'].iloc[0]:,.2f})"
+        if x == 0
+        else "Gian lận đã ghi nhận trong lịch sử"
+    )
+    return out.sort_values("event_time", ascending=False).reset_index(drop=True)
 
 
 def _query(conn, sql: str) -> pd.DataFrame:
@@ -117,6 +150,18 @@ def load_pipeline() -> dict:
                    coalesce(sum(fraud_prediction), 0) AS fraud_count
             FROM transactions
             GROUP BY 1 ORDER BY 2 DESC""")
+        top_flagged = _query(conn, """
+            SELECT customer_id,
+                   count(*) FILTER (WHERE fraud_prediction = 1) AS flagged_tx,
+                   count(*) AS total_tx,
+                   round((100.0 * count(*) FILTER (WHERE fraud_prediction = 1) / count(*))::numeric, 1) AS flagged_pct,
+                   coalesce(sum(amount) FILTER (WHERE fraud_prediction = 1), 0)::float8 AS flagged_amount,
+                   max(fraud_score)::float8 AS max_score
+            FROM transactions
+            GROUP BY customer_id
+            HAVING count(*) FILTER (WHERE fraud_prediction = 1) > 0
+            ORDER BY flagged_tx DESC, flagged_amount DESC
+            LIMIT 15""")
         dead = _query(conn, "SELECT id, left(raw, 300) AS raw, received_at FROM dead_letter "
                             "ORDER BY received_at DESC LIMIT 100")
     finally:
@@ -126,6 +171,7 @@ def load_pipeline() -> dict:
         "by_source": by_source,
         "by_step": by_step,
         "top_merchants": top_merchants,
+        "top_flagged": top_flagged,
         "by_age": by_age,
         "by_gender": by_gender,
         "dead_letter": dead,
@@ -200,8 +246,10 @@ def load_from_postgres(limit: int = 20000):
             tags.append(f"Lệch hồ sơ khách (TB khách: ${u_avg:,.2f})")
         if known_cats and row.category not in known_cats:
             tags.append(f"Ngành mới lạ (chưa từng mua {row.category.replace('es_', '')} trong 125 ngày)")
-        if c_cnt >= 2:
+        if c_cnt >= 3:
             tags.append(f"Tần suất đột biến ({c_cnt} GD/ngày)")
+        elif c_cnt == 2:
+            tags.append("Phát sinh GD thứ 2 bất thường trong ngày")
         if m_rate >= 10.0 or row.merchant_id in fraud_merchants:
             tags.append(f"Merchant rủi ro {row.merchant_id} ({m_rate:.1f}% GD lịch sử là gian lận)")
         reasons.append(" · ".join(tags))
