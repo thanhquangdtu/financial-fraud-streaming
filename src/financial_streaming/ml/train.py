@@ -49,6 +49,9 @@ def main(argv=None):
     ap.add_argument("--depth", type=int, default=4)
     ap.add_argument("--learning-rate", type=float, default=0.1)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--model-out", default=str(ROOT / "data/models/fraud_gbt.json"),
+                    help="where to write the exported model (Airflow writes a candidate, then promotes it)")
+    ap.add_argument("--report-out", default=str(ROOT / "data/reports/ml_report.json"))
     a = ap.parse_args(argv)
 
     train = read_split(ROOT / "data/processed/train.csv")
@@ -94,8 +97,8 @@ def main(argv=None):
     report["export_max_abs_diff_vs_sklearn"] = diff
     assert diff < 1e-6, f"exported model differs from sklearn by {diff}"
 
-    write_json(ROOT / "data/models/fraud_gbt.json", model_json)
-    write_json(ROOT / "data/reports/ml_report.json", report)
+    write_json(a.model_out, model_json)
+    write_json(a.report_out, report)
     for name in ("validation", "test"):
         print(name, report[name])
     print("baseline test", base_test)

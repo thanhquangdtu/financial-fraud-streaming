@@ -94,8 +94,36 @@ services:
       timeout: 5s
       retries: 12
 
+  # Apache Airflow (Week 7). Optional: starts only with `docker compose --profile airflow up -d`.
+  # UI http://localhost:8080 ; admin password: docker compose exec airflow cat /opt/airflow/standalone_admin_password.txt
+  # First start installs the Python packages below (takes a few minutes). DAGs live in ./dags.
+  airflow:
+    image: apache/airflow:2.10.3-python3.11
+    container_name: fraud-airflow
+    profiles: ["airflow"]
+    command: standalone
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/dags
+      _PIP_ADDITIONAL_REQUIREMENTS: "pandas numpy scikit-learn kafka-python psycopg2-binary"
+      PROJECT_DIR: /opt/airflow/project
+      PYTHONPATH: /opt/airflow/project/src
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      PGHOST: postgres
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/opt/airflow/project
+      - airflow-home:/opt/airflow
+
 volumes:
   kafka-data:
   spark-ivy:
   postgres-data:
+  airflow-home:
 

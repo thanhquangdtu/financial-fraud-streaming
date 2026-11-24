@@ -1,13 +1,13 @@
 {
   "input": "E:\\financial-fraud-streaming\\data\\processed\\validation.csv",
   "topic": "transactions.raw",
-  "target_rate_eps": 50.0,
-  "start_index": 3616,
+  "target_rate_eps": 40.0,
+  "start_index": 6573,
   "sent": 200,
   "skipped": 0,
   "completed": false,
   "paused_seconds": 0.0,
-  "elapsed_seconds": 3.984,
-  "effective_rate_eps": 50.2,
-  "next_index": 3816
+  "elapsed_seconds": 4.985,
+  "effective_rate_eps": 40.12,
+  "next_index": 6773
 }
